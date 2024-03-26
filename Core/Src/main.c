@@ -53,6 +53,7 @@
 /* Private variables ---------------------------------------------------------*/
 I2C_HandleTypeDef hi2c1;
 
+UART_HandleTypeDef huart1;
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
@@ -61,6 +62,8 @@ BMP280_HandleTypedef bmp280;
 
 float altitude ,pressure, p, temperature, humidity;
 
+char GPS_data[256];
+uint8_t buffer;
 uint16_t size;
 uint8_t Data[256];
 
@@ -71,12 +74,31 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_USART2_UART_Init(void);
+static void MX_USART1_UART_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+void appendData(uint8_t buffer){
+	static int ind = 0;
+	if(buffer == '\n'){
+		GPS_data[ind++] = '\0';
+		printf("%s\n",GPS_data);
+		ind = 0;
+		strcpy(GPS_data, "");
+	}
+	else if(buffer == '\r'){
+		//skip
+	}
+	else if(buffer == '\0'){
+		//skip
+	}
+	else{
+		GPS_data[ind++] = buffer;
+	}
+}
 int __io_putchar(int ch)
  {
      if (ch == '\n') {
@@ -87,6 +109,14 @@ int __io_putchar(int ch)
      HAL_UART_Transmit(&huart2, (uint8_t*)&ch, 1, HAL_MAX_DELAY);
      return 1;
  }
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+  if(huart == &huart1)
+  {
+	  appendData(buffer);
+	  HAL_UART_Receive_IT(&huart1, &buffer, 1);
+  }
+}
 /* USER CODE END 0 */
 
 /**
@@ -119,6 +149,7 @@ int main(void)
   MX_GPIO_Init();
   MX_I2C1_Init();
   MX_USART2_UART_Init();
+  MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
   //AHT20
   float temp;
@@ -130,95 +161,79 @@ int main(void)
   uint8_t init[3] = {0xbe, 0x08, 0x00};
   uint8_t measure[3] = {0xac, 0x33, 0x00};
   uint8_t data[6];
-//  uint16_t addr_bmp = 0b1110111; // 0x77
+  uint32_t time_stamp = HAL_GetTick();
 
+  //BMP
+//  bmp280_init_default_params(&bmp280.params);
+//  bmp280.addr = BMP280_I2C_ADDRESS_1;
+//  bmp280.i2c = &hi2c1;
+//  while (!(bmp280_init(&bmp280, &bmp280.params)))
+//  {
+//	printf("BMP280 initialization failed\n");
+//	time_stamp = HAL_GetTick();
+//	while(HAL_GetTick() - time_stamp < 2000) ;
+//  }
+//  bool bme280p = bmp280.id == BMP280_CHIP_ID;
+//  printf("BMP280: found %s\n", bme280p ? "BME280" : "BMP280");
 
-  bmp280_init_default_params(&bmp280.params);
-  	bmp280.addr = BMP280_I2C_ADDRESS_1;
-  	bmp280.i2c = &hi2c1;
-
-  	while (!(bmp280_init(&bmp280, &bmp280.params)))
-  		{
-  			size = sprintf((char *)Data, "BMP280 initialization failed\n");
-  			HAL_UART_Transmit(&huart2, Data, size, 1000);
-  			HAL_Delay(2000);
-  		}
-  	bool bme280p = bmp280.id == BMP280_CHIP_ID;
-  	size = sprintf((char *)Data, "BMP280: found %s\n", bme280p ? "BME280" : "BMP280");
-  	HAL_UART_Transmit(&huart2, Data, size, 1000);
-
+  //GPS
+  HAL_UART_Receive_IT(&huart1, &buffer, 1);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
-	HAL_Delay(5000);
-
-
-	//AHT20
-	HAL_I2C_Master_Receive(&hi2c1, addr_rc, (uint8_t *)data, 6, 1000);
-	printf("Leading text "BYTE_TO_BINARY_PATTERN"\n", BYTE_TO_BINARY(data[0]));
-	if((data[0] >> 3 & 1) != 1){
-	  printf("Kalibracja\n");
-	  HAL_I2C_Master_Transmit(&hi2c1, addr_wr, (uint8_t *)init, 3, 1000);
-	}
-	HAL_Delay(10);
-	HAL_I2C_Master_Transmit(&hi2c1, addr_wr, (uint8_t *)measure, 3, 1000);
-	HAL_Delay(85);
-	HAL_I2C_Master_Receive(&hi2c1, addr_rc, (uint8_t *)data, 6, 1000);
-	//AHT20 COMM FINISHED
-
-	//display control byte
-	printf("Leading text "BYTE_TO_BINARY_PATTERN"\n", BYTE_TO_BINARY(data[0]));
-	//check control byte and calculate values
-	if(((data[0] >> 7) & 1) == 0) {
-	  printf("Komunikacja udana \n");
-	  temp_data = ((uint32_t)data[3] << 16) + ((uint32_t)data[4] << 8) + (uint32_t)data[5];
-	  temp_data = temp_data & (~(0xFFF00000));
-	  temp = ((float)temp_data/1048576) * 200 - 50;
-	  temp_data = ((uint32_t)data[1] << 16) + ((uint32_t)data[2] << 8) + (uint32_t)data[3];
-	  temp_data = temp_data >> 4;
-	  humi = ((float)temp_data/1048576) * 100;
-	}
-	else
-	{
-	  printf("Komunikacja nie udana\n");
-	}
-
-
-
-
-	printf("Temperatura wynosi %f *C\n", temp);
-	printf("Wilgotnosc  wynosi %f %%\n", humi);
-
-
-	HAL_Delay(100);
-			while (!bmp280_read_float(&bmp280, &temperature, &pressure, &humidity)) {
-				size = sprintf((char *)Data,
-						"Temperature/pressure reading failed\n");
-				HAL_UART_Transmit(&huart2, Data, size, 1000);
-				HAL_Delay(2000);
-			}
-				p = pressure/100;
-			 altitude = 44330.0*(1-pow(p/1013.25, 1/5.255));
-
-			  size = sprintf((char *)Data,"\nPressure: %.2f Pa, Temperature: %.2f C , Altitude: %.2f m\r\n",
-					pressure, temperature , altitude);
-			//size = sprintf((char *)Data,"\nPressure: %.2f Pa, Temperature: %.2f C \r\n",
-			//		pressure, temperature);
-			HAL_UART_Transmit(&huart2, Data, size, 1000);
-			if (bme280p) {
-				//size = sprintf((char *)Data,", Humidity: %.2f\n", humidity);
-				//HAL_UART_Transmit(&huart1, Data, size, 1000);
-			}
-
-			else {
-				size = sprintf((char *)Data, "\n");
-				HAL_UART_Transmit(&huart2, Data, size, 1000);
-			}
-			HAL_Delay(500);
+//	HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
+//	time_stamp = HAL_GetTick();
+//	while(HAL_GetTick() - time_stamp < 5000) ;
+//
+//	//AHT20
+//	HAL_I2C_Master_Receive(&hi2c1, addr_rc, (uint8_t *)data, 6, 1000);
+//	if((data[0] >> 3 & 1) != 1){
+//	  printf("Kalibracja\n");
+//	  HAL_I2C_Master_Transmit(&hi2c1, addr_wr, (uint8_t *)init, 3, 1000);
+//	}
+//	time_stamp = HAL_GetTick();
+//	while(HAL_GetTick() - time_stamp < 10) ;
+//	HAL_I2C_Master_Transmit(&hi2c1, addr_wr, (uint8_t *)measure, 3, 1000);
+//	time_stamp = HAL_GetTick();
+//	while(HAL_GetTick() - time_stamp < 85) ;
+//	HAL_I2C_Master_Receive(&hi2c1, addr_rc, (uint8_t *)data, 6, 1000);
+//	//AHT20 COMM FINISHED
+//
+//	//check control byte and calculate values
+//	if(((data[0] >> 7) & 1) == 0) {
+//	  printf("Komunikacja udana \n");
+//	  temp_data = ((uint32_t)data[3] << 16) + ((uint32_t)data[4] << 8) + (uint32_t)data[5];
+//	  temp_data = temp_data & (~(0xFFF00000));
+//	  temp = ((float)temp_data/1048576) * 200 - 50;
+//	  temp_data = ((uint32_t)data[1] << 16) + ((uint32_t)data[2] << 8) + (uint32_t)data[3];
+//	  temp_data = temp_data >> 4;
+//	  humi = ((float)temp_data/1048576) * 100;
+//	}
+//	else
+//	{
+//	  printf("Komunikacja nie udana\n");
+//	}
+//	printf("Temperatura wynosi %f *C\n", temp);
+//	printf("Wilgotnosc  wynosi %f %%\n", humi);
+//
+//
+//	time_stamp = HAL_GetTick();
+//	while(HAL_GetTick() - time_stamp < 100) ;
+//	while (!bmp280_read_float(&bmp280, &temperature, &pressure, &humidity)) {
+//		printf("Temperature/pressure reading failed\n");
+//		time_stamp = HAL_GetTick();
+//		while(HAL_GetTick() - time_stamp < 2000) ;
+//	}
+//	p = pressure/100;
+//	altitude = 44330.0*(1-pow(p/1013.25, 1/5.255));
+//
+//	printf("Pressure: %.2f Pa, Temperature: %.2f C , Altitude: %.2f m\n",
+//			pressure, temperature , altitude);
+//	time_stamp = HAL_GetTick();
+//	while(HAL_GetTick() - time_stamp < 500) ;
 
     /* USER CODE END WHILE */
 
@@ -318,6 +333,41 @@ static void MX_I2C1_Init(void)
   /* USER CODE BEGIN I2C1_Init 2 */
 
   /* USER CODE END I2C1_Init 2 */
+
+}
+
+/**
+  * @brief USART1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_USART1_UART_Init(void)
+{
+
+  /* USER CODE BEGIN USART1_Init 0 */
+
+  /* USER CODE END USART1_Init 0 */
+
+  /* USER CODE BEGIN USART1_Init 1 */
+
+  /* USER CODE END USART1_Init 1 */
+  huart1.Instance = USART1;
+  huart1.Init.BaudRate = 9600;
+  huart1.Init.WordLength = UART_WORDLENGTH_8B;
+  huart1.Init.StopBits = UART_STOPBITS_1;
+  huart1.Init.Parity = UART_PARITY_NONE;
+  huart1.Init.Mode = UART_MODE_TX_RX;
+  huart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart1.Init.OverSampling = UART_OVERSAMPLING_16;
+  huart1.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
+  huart1.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
+  if (HAL_UART_Init(&huart1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN USART1_Init 2 */
+
+  /* USER CODE END USART1_Init 2 */
 
 }
 
