@@ -45,6 +45,8 @@
 /* Private variables ---------------------------------------------------------*/
 I2C_HandleTypeDef hi2c1;
 
+IWDG_HandleTypeDef hiwdg;
+
 RTC_HandleTypeDef hrtc;
 
 UART_HandleTypeDef huart1;
@@ -61,6 +63,7 @@ static void MX_RTC_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_USART1_UART_Init(void);
+static void MX_IWDG_Init(void);
 /* USER CODE BEGIN PFP */
 /* USER CODE END PFP */
 
@@ -157,6 +160,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
   }
   //keep receving data
   HAL_UART_Receive_IT(&huart1, &Rx_bit, 1);
+  HAL_IWDG_Refresh(&hiwdg);
 
 }
 
@@ -200,6 +204,7 @@ int main(void)
   MX_USART2_UART_Init();
   MX_I2C1_Init();
   MX_USART1_UART_Init();
+  MX_IWDG_Init();
   /* USER CODE BEGIN 2 */
 
   const uint16_t addr = 0b0111000; //0x38
@@ -210,7 +215,7 @@ int main(void)
   uint8_t measure[3] = {0xac, 0x33, 0x00};
   uint8_t data[6];
   uint32_t time_stamp = HAL_GetTick();
-
+  HAL_IWDG_Refresh(&hiwdg);
   HAL_I2C_Master_Receive(&hi2c1, addr_rc, (uint8_t *)data, 6, 1000);
   if((data[0] >> 3 & 1) != 1){
     printf("Kalibracja\n");
@@ -223,7 +228,7 @@ int main(void)
   while(HAL_GetTick() - time_stamp < 85) ;
   HAL_I2C_Master_Receive(&hi2c1, addr_rc, (uint8_t *)data, 6, 1000);
   //AHT20 COMM FINISHED
-
+  HAL_IWDG_Refresh(&hiwdg);
   //check control byte and calculate values
   if(((data[0] >> 7) & 1) == 0) {
     printf("Komunikacja udana \n");
@@ -240,12 +245,13 @@ int main(void)
   }
   printf("Temperatura wynosi %f *C\n", temp);
   printf("Wilgotnosc  wynosi %f %%\n", humi);
-
+  HAL_IWDG_Refresh(&hiwdg);
 
   HAL_UART_Receive_IT(&huart1, &Rx_bit, 1);
   HAL_UART_Transmit_IT(&huart1, (uint8_t *)Tx_data[msg], strlen(Tx_data[msg]));
   HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);
   while(!completed);
+
   printf("Going to sleep\n");
   HAL_PWR_EnterSTANDBYMode();
   /* USER CODE END 2 */
@@ -285,8 +291,10 @@ void SystemClock_Config(void)
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_LSE|RCC_OSCILLATORTYPE_MSI;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_LSI|RCC_OSCILLATORTYPE_LSE
+                              |RCC_OSCILLATORTYPE_MSI;
   RCC_OscInitStruct.LSEState = RCC_LSE_ON;
+  RCC_OscInitStruct.LSIState = RCC_LSI_ON;
   RCC_OscInitStruct.MSIState = RCC_MSI_ON;
   RCC_OscInitStruct.MSICalibrationValue = 0;
   RCC_OscInitStruct.MSIClockRange = RCC_MSIRANGE_6;
@@ -366,6 +374,35 @@ static void MX_I2C1_Init(void)
   /* USER CODE BEGIN I2C1_Init 2 */
 
   /* USER CODE END I2C1_Init 2 */
+
+}
+
+/**
+  * @brief IWDG Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_IWDG_Init(void)
+{
+
+  /* USER CODE BEGIN IWDG_Init 0 */
+
+  /* USER CODE END IWDG_Init 0 */
+
+  /* USER CODE BEGIN IWDG_Init 1 */
+
+  /* USER CODE END IWDG_Init 1 */
+  hiwdg.Instance = IWDG;
+  hiwdg.Init.Prescaler = IWDG_PRESCALER_32;
+  hiwdg.Init.Window = 4000;
+  hiwdg.Init.Reload = 4000;
+  if (HAL_IWDG_Init(&hiwdg) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN IWDG_Init 2 */
+
+  /* USER CODE END IWDG_Init 2 */
 
 }
 
