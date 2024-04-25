@@ -1,4 +1,5 @@
-Core/Src/bmp280.o: ../Core/Src/bmp280.c ../Core/Inc/bmp280.h \
+Drivers/STM32L4xx_HAL_Driver/Src/stm32l4xx_hal_rtc.o: \
+ ../Drivers/STM32L4xx_HAL_Driver/Src/stm32l4xx_hal_rtc.c \
  ../Drivers/STM32L4xx_HAL_Driver/Inc/stm32l4xx_hal.h \
  ../Core/Inc/stm32l4xx_hal_conf.h \
  ../Drivers/STM32L4xx_HAL_Driver/Inc/stm32l4xx_hal_rcc.h \
@@ -25,9 +26,10 @@ Core/Src/bmp280.o: ../Core/Src/bmp280.c ../Core/Inc/bmp280.h \
  ../Drivers/STM32L4xx_HAL_Driver/Inc/stm32l4xx_hal_i2c_ex.h \
  ../Drivers/STM32L4xx_HAL_Driver/Inc/stm32l4xx_hal_pwr.h \
  ../Drivers/STM32L4xx_HAL_Driver/Inc/stm32l4xx_hal_pwr_ex.h \
+ ../Drivers/STM32L4xx_HAL_Driver/Inc/stm32l4xx_hal_rtc.h \
+ ../Drivers/STM32L4xx_HAL_Driver/Inc/stm32l4xx_hal_rtc_ex.h \
  ../Drivers/STM32L4xx_HAL_Driver/Inc/stm32l4xx_hal_uart.h \
  ../Drivers/STM32L4xx_HAL_Driver/Inc/stm32l4xx_hal_uart_ex.h
-../Core/Inc/bmp280.h:
 ../Drivers/STM32L4xx_HAL_Driver/Inc/stm32l4xx_hal.h:
 ../Core/Inc/stm32l4xx_hal_conf.h:
 ../Drivers/STM32L4xx_HAL_Driver/Inc/stm32l4xx_hal_rcc.h:
@@ -54,5 +56,7 @@ Core/Src/bmp280.o: ../Core/Src/bmp280.c ../Core/Inc/bmp280.h \
 ../Drivers/STM32L4xx_HAL_Driver/Inc/stm32l4xx_hal_i2c_ex.h:
 ../Drivers/STM32L4xx_HAL_Driver/Inc/stm32l4xx_hal_pwr.h:
 ../Drivers/STM32L4xx_HAL_Driver/Inc/stm32l4xx_hal_pwr_ex.h:
+../Drivers/STM32L4xx_HAL_Driver/Inc/stm32l4xx_hal_rtc.h:
+../Drivers/STM32L4xx_HAL_Driver/Inc/stm32l4xx_hal_rtc_ex.h:
 ../Drivers/STM32L4xx_HAL_Driver/Inc/stm32l4xx_hal_uart.h:
 ../Drivers/STM32L4xx_HAL_Driver/Inc/stm32l4xx_hal_uart_ex.h:
