@@ -66,6 +66,7 @@ static void MX_USART1_UART_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+//SIM800l
 uint8_t Rx_bit;
 char Rx_placeholder[10];
 char Rx_data[100] = "";
@@ -76,6 +77,10 @@ int msg = 0;
 uint32_t tm = 0;
 bool completed = false;
 bool read = false;
+
+//AHT20
+float temp;
+float humi;
 //commands
 char Tx_data[15][200] = {"AT\r",
     "AT+SAPBR=3,1,Contype,\"GPRS\"\r",
@@ -141,7 +146,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 	  num[len] = '\0';
 	  strcpy(num, &num[1]);
 	  sscanf(Locs, "+CLBS: 0,%f,%f,", &longitude, &latitude);
-	  sprintf(Tx_data[msg], "AT+HTTPPARA=URL,\"http://185.201.114.232:5000/NewData?num=%s&latitude=%.6f&longitude=%.6f\"\r",num,latitude,longitude);
+	  sprintf(Tx_data[msg], "AT+HTTPPARA=URL,\"http://185.201.114.232:5000/NewData?num=%s&latitude=%.6f&longitude=%.6f&temp=%.2f&humi=%.2f\"\r",num,latitude,longitude,temp,humi);
 	}
 	if(msg < 13)
 	HAL_UART_Transmit_IT(&huart1, (uint8_t *)Tx_data[msg], strlen(Tx_data[msg]));
@@ -196,6 +201,47 @@ int main(void)
   MX_I2C1_Init();
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
+
+  const uint16_t addr = 0b0111000; //0x38
+  const int addr_wr = addr<<1;
+  const int addr_rc = addr_wr + 1;
+  uint32_t temp_data;
+  uint8_t init[3] = {0xbe, 0x08, 0x00};
+  uint8_t measure[3] = {0xac, 0x33, 0x00};
+  uint8_t data[6];
+  uint32_t time_stamp = HAL_GetTick();
+
+  HAL_I2C_Master_Receive(&hi2c1, addr_rc, (uint8_t *)data, 6, 1000);
+  if((data[0] >> 3 & 1) != 1){
+    printf("Kalibracja\n");
+    HAL_I2C_Master_Transmit(&hi2c1, addr_wr, (uint8_t *)init, 3, 1000);
+  }
+  time_stamp = HAL_GetTick();
+  while(HAL_GetTick() - time_stamp < 10) ;
+  HAL_I2C_Master_Transmit(&hi2c1, addr_wr, (uint8_t *)measure, 3, 1000);
+  time_stamp = HAL_GetTick();
+  while(HAL_GetTick() - time_stamp < 85) ;
+  HAL_I2C_Master_Receive(&hi2c1, addr_rc, (uint8_t *)data, 6, 1000);
+  //AHT20 COMM FINISHED
+
+  //check control byte and calculate values
+  if(((data[0] >> 7) & 1) == 0) {
+    printf("Komunikacja udana \n");
+    temp_data = ((uint32_t)data[3] << 16) + ((uint32_t)data[4] << 8) + (uint32_t)data[5];
+    temp_data = temp_data & (~(0xFFF00000));
+    temp = ((float)temp_data/1048576) * 200 - 50;
+    temp_data = ((uint32_t)data[1] << 16) + ((uint32_t)data[2] << 8) + (uint32_t)data[3];
+    temp_data = temp_data >> 4;
+    humi = ((float)temp_data/1048576) * 100;
+  }
+  else
+  {
+    printf("Komunikacja nie udana\n");
+  }
+  printf("Temperatura wynosi %f *C\n", temp);
+  printf("Wilgotnosc  wynosi %f %%\n", humi);
+
+
   HAL_UART_Receive_IT(&huart1, &Rx_bit, 1);
   HAL_UART_Transmit_IT(&huart1, (uint8_t *)Tx_data[msg], strlen(Tx_data[msg]));
   HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);
