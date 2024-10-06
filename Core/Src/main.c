@@ -25,6 +25,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdbool.h>
+#include "bmp280.h"
+#include <math.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -35,6 +37,7 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 
+#define code "8Tar"
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -81,6 +84,11 @@ uint32_t tm = 0;
 bool completed = false;
 bool read = false;
 
+//BMP
+
+BMP280_HandleTypedef bmp280;
+
+float altitude ,pressure, p, temperature, humidity;
 //AHT20
 float temp;
 float humi;
@@ -147,9 +155,9 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 	  char num[len + 1];
 	  strncpy(num, numberStart, len);
 	  num[len] = '\0';
-	  strcpy(num, &num[1]);
+	  strcpy(num, &num[4]);
 	  sscanf(Locs, "+CLBS: 0,%f,%f,", &longitude, &latitude);
-	  sprintf(Tx_data[msg], "AT+HTTPPARA=URL,\"http://185.201.114.232:5000/NewData?num=%s&latitude=%.6f&longitude=%.6f&temp=%.2f&humi=%.2f\"\r",num,latitude,longitude,temp,humi);
+	  sprintf(Tx_data[msg], "AT+HTTPPARA=URL,\"http://185.201.114.232:5000/NewData?num=%s&latitude=%.6f&longitude=%.6f&temp=%.2f&humi=%.2f&press=%.2f&code=%s\"\r",num,latitude,longitude,temp-2,humi,pressure,code);
 	}
 	if(msg < 13)
 	HAL_UART_Transmit_IT(&huart1, (uint8_t *)Tx_data[msg], strlen(Tx_data[msg]));
@@ -245,6 +253,35 @@ int main(void)
   }
   printf("Temperatura wynosi %f *C\n", temp);
   printf("Wilgotnosc  wynosi %f %%\n", humi);
+  HAL_IWDG_Refresh(&hiwdg);
+
+
+
+  bmp280_init_default_params(&bmp280.params);
+  bmp280.addr = BMP280_I2C_ADDRESS_1;
+  bmp280.i2c = &hi2c1;
+  while (!(bmp280_init(&bmp280, &bmp280.params)))
+  {
+	time_stamp = HAL_GetTick();
+	while(HAL_GetTick() - time_stamp < 2000) ;
+  }
+
+  HAL_IWDG_Refresh(&hiwdg);
+  bool bme280p = bmp280.id == BMP280_CHIP_ID;
+  time_stamp = HAL_GetTick();
+  while(HAL_GetTick() - time_stamp < 100) ;
+  while (!bmp280_read_float(&bmp280, &temperature, &pressure, &humidity)) {
+	  time_stamp = HAL_GetTick();
+	  while(HAL_GetTick() - time_stamp < 2000) ;
+  }
+
+  HAL_IWDG_Refresh(&hiwdg);
+  p = pressure/100;
+  altitude = 44330.0*(1-pow(p/1013.25, 1/5.255));
+
+  time_stamp = HAL_GetTick();
+  while(HAL_GetTick() - time_stamp < 500) ;
+
   HAL_IWDG_Refresh(&hiwdg);
 
   HAL_UART_Receive_IT(&huart1, &Rx_bit, 1);
